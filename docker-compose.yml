@@ -105,6 +105,7 @@ services:
     volumes:
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
       - ./spark/jobs:/app/spark/jobs:ro
+      - ./data/processed:/app/data/processed:ro
       - ./checkpoints:/checkpoints
       - ivy-cache:/root/.ivy2
 
