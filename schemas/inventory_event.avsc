@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "InventoryEvent",
+  "namespace": "twin.events",
+  "fields": [
+    {"name": "event_id", "type": "string"},
+    {"name": "event_time", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+    {"name": "event_type", "type": "string"},
+    {"name": "part_id", "type": "string"},
+    {"name": "site", "type": "string"},
+    {"name": "quantity", "type": "int"},
+    {"name": "ref_id", "type": ["null", "string"], "default": null}
+  ]
+}

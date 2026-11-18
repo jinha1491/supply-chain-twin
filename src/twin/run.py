@@ -11,6 +11,7 @@ from twin.sim.demand import generate_orders
 from twin.sim.engine import simulate
 from twin.sim.events import Emitter
 from twin.sim.sinks import ParquetSink
+from twin.stream.kafka_sink import KafkaSink
 
 CONFIG = "config/network.yaml"
 
@@ -21,7 +22,13 @@ def horizon_days(demand: pd.DataFrame) -> float:
     return float((end - start).days)
 
 
-def run(run_id: str, snapshot_every_days: float, out_dir: str) -> tuple[Path, int, float]:
+def make_sink(kind: str, run_id: str, out_dir: str):
+    if kind == "kafka":
+        return KafkaSink.from_settings()
+    return ParquetSink(Path(out_dir) / f"{run_id}.parquet")
+
+
+def run(run_id: str, snapshot_every_days: float, sink) -> float:
     config = load_config(CONFIG)
     demand = pd.read_parquet(config.demand_file)
     parts = pd.read_parquet("data/processed/parts.parquet")
@@ -29,10 +36,9 @@ def run(run_id: str, snapshot_every_days: float, out_dir: str) -> tuple[Path, in
 
     rng = np.random.default_rng(config.seed)
     orders = generate_orders(demand, parts.index, config.regions, rng)
-    path = Path(out_dir) / f"{run_id}.parquet"
 
     started = time.perf_counter()
-    with ParquetSink(path) as sink:
+    with sink:
         emitter = Emitter(run_id, demand["month"].min().to_pydatetime(), sink)
         simulate(
             config,
@@ -44,7 +50,7 @@ def run(run_id: str, snapshot_every_days: float, out_dir: str) -> tuple[Path, in
             until=horizon_days(demand),
             snapshot_every_days=snapshot_every_days,
         )
-    return path, sink.count, time.perf_counter() - started
+    return time.perf_counter() - started
 
 
 def summarize(path: Path, config: NetworkConfig) -> None:
@@ -92,13 +98,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the supply chain twin simulation.")
     parser.add_argument("--run-id", default="baseline")
     parser.add_argument("--snapshot-every-days", type=float, default=1.0)
+    parser.add_argument("--sink", choices=["parquet", "kafka"], default="parquet")
     parser.add_argument("--out-dir", default="data/events")
     args = parser.parse_args()
 
-    path, count, elapsed = run(args.run_id, args.snapshot_every_days, args.out_dir)
-    size_mb = path.stat().st_size / 1e6
-    print(f"{count:,} events in {elapsed:.1f}s ({count / elapsed:,.0f} events/s), {size_mb:.1f} MB")
-    summarize(path, load_config(CONFIG))
+    sink = make_sink(args.sink, args.run_id, args.out_dir)
+    elapsed = run(args.run_id, args.snapshot_every_days, sink)
+    print(f"{sink.count:,} events in {elapsed:.1f}s ({sink.count / elapsed:,.0f} events/s)")
+
+    if args.sink == "parquet":
+        print(f"{sink.path.stat().st_size / 1e6:.1f} MB")
+        summarize(sink.path, load_config(CONFIG))
 
 
 if __name__ == "__main__":
