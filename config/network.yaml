@@ -1,0 +1,26 @@
+seed: 42
+
+data:
+  demand_file: data/processed/carparts.parquet
+  profile_file: data/processed/part_profiles.parquet
+
+suppliers:
+  - name: domestic
+    share_of_parts: 0.3
+    lead_time_days: {mean: 7, std: 2}
+  - name: mexico
+    share_of_parts: 0.3
+    lead_time_days: {mean: 18, std: 5}
+  - name: asia
+    share_of_parts: 0.4
+    lead_time_days: {mean: 45, std: 15}
+
+dc:
+  name: central_dc
+  capacity_units: 20000
+
+regions:
+  - {name: west, demand_share: 0.35, transit_days: 3, capacity_units: 4000}
+  - {name: central, demand_share: 0.20, transit_days: 2, capacity_units: 2500}
+  - {name: east, demand_share: 0.30, transit_days: 3, capacity_units: 3500}
+  - {name: south, demand_share: 0.15, transit_days: 2, capacity_units: 2000}
