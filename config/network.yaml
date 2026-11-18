@@ -17,10 +17,16 @@ suppliers:
 
 dc:
   name: central_dc
-  capacity_units: 20000
+  capacity_units: 7685
 
 regions:
-  - {name: west, demand_share: 0.35, transit_days: 3, capacity_units: 4000}
-  - {name: central, demand_share: 0.20, transit_days: 2, capacity_units: 2500}
-  - {name: east, demand_share: 0.30, transit_days: 3, capacity_units: 3500}
-  - {name: south, demand_share: 0.15, transit_days: 2, capacity_units: 2000}
+  - {name: west, demand_share: 0.35, transit_days: 3, capacity_units: 2986}
+  - {name: central, demand_share: 0.20, transit_days: 2, capacity_units: 2886}
+  - {name: east, demand_share: 0.30, transit_days: 3, capacity_units: 2890}
+  - {name: south, demand_share: 0.15, transit_days: 2, capacity_units: 2886}
+
+policy:
+  region_fill_target: 0.95
+  dc_service_target: 0.95
+  dc_order_cover_days: 30
+  capacity_headroom: 1.15
