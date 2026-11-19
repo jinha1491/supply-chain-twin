@@ -83,7 +83,8 @@ services:
         aws --endpoint-url http://seaweedfs:8333 s3 mb s3://warehouse || true
 
   spark:
-    image: spark:3.5.3-scala2.12-java17-python3-ubuntu
+    build: ./spark
+    image: twin-spark:3.5.3
     profiles: ["jobs"]
     user: root
     depends_on:
@@ -102,10 +103,12 @@ services:
       AWS_REGION: us-east-1
       KAFKA_BOOTSTRAP: kafka:19092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      PYTHONPATH: /app/src
     volumes:
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
       - ./spark/jobs:/app/spark/jobs:ro
       - ./data/processed:/app/data/processed:ro
+      - ./src:/app/src:ro
       - ./checkpoints:/checkpoints
       - ivy-cache:/root/.ivy2
 

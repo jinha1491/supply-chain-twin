@@ -1,7 +1,9 @@
 from pyspark.sql import SparkSession
 
-POLICY_FILE = "/app/data/processed/policy.parquet"
-TABLE = "lake.ref.policy"
+TABLES = {
+    "lake.ref.policy": "/app/data/processed/policy.parquet",
+    "lake.ref.parts": "/app/data/processed/parts.parquet",
+}
 
 
 def main() -> None:
@@ -9,9 +11,9 @@ def main() -> None:
     spark.sparkContext.setLogLevel("WARN")
     spark.sql("CREATE NAMESPACE IF NOT EXISTS lake.ref")
 
-    policy = spark.read.parquet(POLICY_FILE)
-    policy.writeTo(TABLE).createOrReplace()
-    print(f"{TABLE}: {spark.table(TABLE).count():,} rows")
+    for table, path in TABLES.items():
+        spark.read.parquet(path).writeTo(table).createOrReplace()
+        print(f"{table}: {spark.table(table).count():,} rows")
 
 
 if __name__ == "__main__":
