@@ -12,6 +12,7 @@ from twin.sim.engine import simulate
 from twin.sim.events import Emitter
 from twin.sim.sinks import ParquetSink
 from twin.stream.kafka_sink import KafkaSink
+from twin.stream.late import LateSink
 
 CONFIG = "config/network.yaml"
 
@@ -100,15 +101,24 @@ def main() -> None:
     parser.add_argument("--snapshot-every-days", type=float, default=1.0)
     parser.add_argument("--sink", choices=["parquet", "kafka"], default="parquet")
     parser.add_argument("--out-dir", default="data/events")
+    parser.add_argument("--late-fraction", type=float, default=0.0)
+    parser.add_argument("--late-max-days", type=float, default=5.0)
     args = parser.parse_args()
 
-    sink = make_sink(args.sink, args.run_id, args.out_dir)
+    base = make_sink(args.sink, args.run_id, args.out_dir)
+    sink = (
+        LateSink(base, args.late_fraction, max_days=args.late_max_days)
+        if args.late_fraction
+        else base
+    )
     elapsed = run(args.run_id, args.snapshot_every_days, sink)
     print(f"{sink.count:,} events in {elapsed:.1f}s ({sink.count / elapsed:,.0f} events/s)")
+    if args.late_fraction:
+        print(f"{sink.delayed:,} events sent late")
 
     if args.sink == "parquet":
-        print(f"{sink.path.stat().st_size / 1e6:.1f} MB")
-        summarize(sink.path, load_config(CONFIG))
+        print(f"{base.path.stat().st_size / 1e6:.1f} MB")
+        summarize(base.path, load_config(CONFIG))
 
 
 if __name__ == "__main__":

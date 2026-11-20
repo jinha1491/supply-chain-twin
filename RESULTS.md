@@ -19,3 +19,16 @@ Measured numbers from this project, with the step that produced each one.
   recomputation at every site.
 - Regional stockouts for Asia-sourced parts last 5.0 days on average vs 3.0 for
   domestic (67% longer), with the same frequency, because of upstream DC delays.
+
+## Late data and watermarks (step 7c)
+- 2% of demand and backorder events delayed 1 to 30 days; 1,365 late events measured
+  from Kafka lineage columns (offset order vs event time), roughly flat by 5-day bin.
+- Kafka-source windowed aggregation, ~163 batches: 2-day watermark dropped 895 late
+  events (66%), 7-day dropped 488 (36%), 30-day dropped 0. The 30-day watermark left
+  about 28 more days of windows unfinished at the end of the stream.
+- Since Spark 3.4, late rows are filtered with the previous batch's watermark
+  (SPARK-40925), so effective tolerance is the watermark plus about one batch of event
+  time. Replays with batches spanning about 32 days dropped nothing at a 2-day
+  watermark.
+- Splitting micro-batches by file inside an Iceberg commit reordered data enough to
+  drop 939 events at a 2-day watermark with no extra injected lateness.
