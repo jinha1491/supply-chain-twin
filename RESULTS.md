@@ -85,3 +85,13 @@ Measured numbers from this project, with the step that produced each one.
   (+2.34) while other parts moved -0.15; difference-in-differences +2.50 days.
   Asia stockouts stayed elevated after recovery (5.82) while in-flight 70-day orders
   cleared.
+
+## dbt on the lakehouse (step 11)
+- dbt-spark (session method) builds Iceberg marts from raw events, streaming gold
+  tables, and CDC history: dim_supplier_versions (SCD type 2 from Debezium history),
+  fct_daily_service (batch), fct_stockout_episodes (as-of supplier lead time).
+- dbt build: 14 of 14 passed (3 models, 11 tests), including batch vs streaming
+  reconciliation of every closed daily window, uniqueness of 3.26M event IDs, and no
+  gaps or overlaps in supplier version history. Source freshness on ingest time: pass.
+- Pipeline runner executes ingest, CDC merge, aggregation, stockouts, freshness, and
+  dbt build in order with per-step logs; full run about 100 s.

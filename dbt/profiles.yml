@@ -1,0 +1,9 @@
+twin:
+  target: lake
+  outputs:
+    lake:
+      type: spark
+      method: session
+      host: NA
+      schema: marts
+      threads: 1

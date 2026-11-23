@@ -8,3 +8,6 @@ __pycache__/
 data/
 checkpoints/
 *.log
+dbt/target/
+dbt/logs/
+logs/

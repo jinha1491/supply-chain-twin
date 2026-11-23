@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: dim_supplier_versions
+    columns:
+      - name: supplier
+        tests: [not_null]
+      - name: valid_from
+        tests: [not_null]
+  - name: fct_daily_service
+    columns:
+      - name: day
+        tests: [not_null]
+      - name: site
+        tests: [not_null]
+  - name: fct_stockout_episodes
+    columns:
+      - name: lead_time_mean_at_start
+        tests: [not_null]

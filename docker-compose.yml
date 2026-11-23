@@ -131,6 +131,7 @@ services:
       - ./spark/jobs:/app/spark/jobs:ro
       - ./data/processed:/app/data/processed:ro
       - ./src:/app/src:ro
+      - ./dbt:/app/dbt
       - ./checkpoints:/checkpoints
       - ivy-cache:/root/.ivy2
 
