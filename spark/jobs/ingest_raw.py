@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import time
 import urllib.request
 
 from pyspark.sql import DataFrame, SparkSession
@@ -70,20 +71,22 @@ def kafka_events(
         "schema_id",
         F.col("partition").alias("kafka_partition"),
         F.col("offset").alias("kafka_offset"),
+        F.col("timestamp").alias("kafka_timestamp"),
     ).select(
         "event.*",
         "schema_id",
         "kafka_partition",
         "kafka_offset",
+        "kafka_timestamp",
         F.current_timestamp().alias("ingested_at"),
     )
 
 
-def create_table(spark: SparkSession) -> None:
-    spark.sql("CREATE NAMESPACE IF NOT EXISTS lake.raw")
+def create_table(spark: SparkSession, table: str) -> None:
+    spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {table.rsplit('.', 1)[0]}")
     spark.sql(
         f"""
-        CREATE TABLE IF NOT EXISTS {TABLE} (
+        CREATE TABLE IF NOT EXISTS {table} (
             event_id STRING,
             event_time TIMESTAMP,
             event_type STRING,
@@ -101,35 +104,55 @@ def create_table(spark: SparkSession) -> None:
     )
 
 
-def evolve_table(spark: SparkSession, events: DataFrame) -> list[str]:
-    existing = set(spark.table(TABLE).columns)
+def evolve_table(spark: SparkSession, table: str, events: DataFrame) -> list[str]:
+    existing = set(spark.table(table).columns)
     added = []
     for field in events.schema.fields:
         if field.name not in existing:
-            spark.sql(
-                f"ALTER TABLE {TABLE} ADD COLUMN {field.name} {field.dataType.simpleString()}"
-            )
+            column_type = field.dataType.simpleString()
+            spark.sql(f"ALTER TABLE {table} ADD COLUMN {field.name} {column_type}")
             added.append(field.name)
     return added
+
+
+def summarize(query, started: float) -> None:
+    progress = [p for p in query.recentProgress if p["numInputRows"] > 0]
+    rows = sum(p["numInputRows"] for p in progress)
+    elapsed = time.perf_counter() - started
+    durations = sorted(p["durationMs"].get("triggerExecution", 0) / 1000 for p in progress)
+    print(
+        f"ingest: {len(progress)} batches, {rows:,} rows in {elapsed:.1f}s "
+        f"({rows / elapsed:,.0f} rows/s)",
+        flush=True,
+    )
+    if durations:
+        p50 = durations[len(durations) // 2]
+        p95 = durations[int(0.95 * (len(durations) - 1))]
+        print(f"ingest: batch duration p50 {p50:.2f}s, p95 {p95:.2f}s", flush=True)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stream Kafka events into Iceberg.")
     parser.add_argument("--once", action="store_true", help="ingest what is in Kafka, then stop")
+    parser.add_argument("--table", default=TABLE)
+    parser.add_argument("--fresh", action="store_true", help="drop the table first")
     parser.add_argument("--checkpoint", default="/checkpoints/ingest_raw")
     parser.add_argument("--max-offsets", type=int, default=500_000)
     parser.add_argument("--trigger-seconds", type=int, default=10)
+    parser.add_argument("--run-seconds", type=int, default=0)
     parser.add_argument("--max-schema-version", type=int, default=None)
     args = parser.parse_args()
 
     spark = SparkSession.builder.appName("ingest_raw").getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
-    create_table(spark)
+    if args.fresh:
+        spark.sql(f"DROP TABLE IF EXISTS {args.table} PURGE")
+    create_table(spark, args.table)
 
     events = kafka_events(spark, args.max_offsets, args.max_schema_version)
-    for column in evolve_table(spark, events):
-        print(f"added column {column} to {TABLE}")
-    events = events.select(*spark.table(TABLE).columns)
+    for column in evolve_table(spark, args.table, events):
+        print(f"added column {column} to {args.table}", flush=True)
+    events = events.select(*spark.table(args.table).columns)
 
     writer = (
         events.writeStream.format("iceberg")
@@ -142,7 +165,15 @@ def main() -> None:
     else:
         writer = writer.trigger(processingTime=f"{args.trigger_seconds} seconds")
 
-    writer.toTable(TABLE).awaitTermination()
+    query = writer.toTable(args.table)
+    started = time.perf_counter()
+    print("ingest: query started", flush=True)
+    if args.run_seconds:
+        query.awaitTermination(args.run_seconds)
+        query.stop()
+    else:
+        query.awaitTermination()
+    summarize(query, started)
 
 
 if __name__ == "__main__":

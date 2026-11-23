@@ -110,3 +110,16 @@ Measured numbers from this project, with the step that produced each one.
 - Fast serializer registers the schema once, caches the 5-byte Confluent header,
   and encodes bodies with fastavro: 34% less serialization time, producer throughput
   69,831 to 88,353 events/s (+26.5%), same wire format, all messages delivered.
+
+## Ingestion throughput and end-to-end latency (step 13b)
+- Bulk: 19,931,335 events produced at 94,635/s (fast serializer); Kafka to Iceberg
+  ingestion of all 19.9M rows in 61.0 s, 326,663 rows/s, 40 batches of 500K
+  (batch p50 1.35 s, p95 2.04 s). Spark ingests about 3.5x faster than the Python
+  producer sends.
+- Latency per row = Iceberg commit time (via _file, entries, snapshots metadata)
+  minus Kafka send time, with a 2 s trigger:
+  - 10,000 events/s: p50 1.58 s, p99 3.35 s, steady-state median 1.58 s.
+  - 30,000 events/s: p50 2.31 s, p99 11.54 s; median fell from 5.46 s in the first
+    third to 1.59 s in the last, a warm-up transient rather than backlog.
+  - Producer at full speed alongside Spark on one laptop (31,641 events/s
+    measured from Kafka timestamps): steady-state median 2.64 s.
