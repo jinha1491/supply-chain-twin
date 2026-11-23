@@ -8,22 +8,25 @@ suppliers:
   - name: domestic
     share_of_parts: 0.3
     lead_time_days: {mean: 7, std: 2}
+    carrier: roadline
   - name: mexico
     share_of_parts: 0.3
     lead_time_days: {mean: 18, std: 5}
+    carrier: nortrans
   - name: asia
     share_of_parts: 0.4
     lead_time_days: {mean: 45, std: 15}
+    carrier: pacific_ocean
 
 dc:
   name: central_dc
   capacity_units: 7685
 
 regions:
-  - {name: west, demand_share: 0.35, transit_days: 3, capacity_units: 2986}
-  - {name: central, demand_share: 0.20, transit_days: 2, capacity_units: 2886}
-  - {name: east, demand_share: 0.30, transit_days: 3, capacity_units: 2890}
-  - {name: south, demand_share: 0.15, transit_days: 2, capacity_units: 2886}
+  - {name: west, demand_share: 0.35, transit_days: 3, capacity_units: 2986, carrier: westfreight}
+  - {name: central, demand_share: 0.20, transit_days: 2, capacity_units: 2886, carrier: midland}
+  - {name: east, demand_share: 0.30, transit_days: 3, capacity_units: 2890, carrier: eastbound}
+  - {name: south, demand_share: 0.15, transit_days: 2, capacity_units: 2886, carrier: gulfway}
 
 policy:
   region_fill_target: 0.95

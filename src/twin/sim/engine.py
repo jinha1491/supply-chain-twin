@@ -32,6 +32,7 @@ class NetworkSim:
         self.dc = config.dc_name
         self.suppliers = {s.name: s for s in config.suppliers}
         self.transit_days = {r.name: r.transit_days for r in config.regions}
+        self.region_carrier = {r.name: r.carrier for r in config.regions}
         self.part_supplier = part_supplier
         self.policy = policy
         self.emitter = emitter
@@ -52,8 +53,10 @@ class NetworkSim:
         self._id_seq += 1
         return f"{prefix}-{self._id_seq:08d}"
 
-    def _emit(self, event_type: EventType, part: str, site: str, qty: int, ref_id) -> None:
-        self.emitter.emit(self.env.now, event_type, part, site, qty, ref_id)
+    def _emit(
+        self, event_type: EventType, part: str, site: str, qty: int, ref_id, carrier_id=None
+    ) -> None:
+        self.emitter.emit(self.env.now, event_type, part, site, qty, ref_id, carrier_id)
 
     def run_orders(self, orders: pd.DataFrame):
         for order in orders.itertuples(index=False):
@@ -84,7 +87,8 @@ class NetworkSim:
         self._check_dc_reorder(part)
 
     def _ship_to_region(self, part: str, region: str, request_id: str) -> None:
-        self._emit(EventType.SHIPMENT_DISPATCHED, part, self.dc, 1, request_id)
+        carrier = self.region_carrier[region]
+        self._emit(EventType.SHIPMENT_DISPATCHED, part, self.dc, 1, request_id, carrier)
         self.env.process(self._deliver_to_region(part, region, request_id))
 
     def _deliver_to_region(self, part: str, region: str, request_id: str):
@@ -112,7 +116,9 @@ class NetworkSim:
         supplier = self.suppliers[self.part_supplier[part]]
         self.dc_on_order[part] += quantity
         self._emit(EventType.REPLENISHMENT_ORDER, part, self.dc, quantity, po_id)
-        self._emit(EventType.SHIPMENT_DISPATCHED, part, supplier.name, quantity, po_id)
+        self._emit(
+            EventType.SHIPMENT_DISPATCHED, part, supplier.name, quantity, po_id, supplier.carrier
+        )
         lead_time = self.lead_time(supplier)
         self.env.process(self._deliver_to_dc(part, quantity, po_id, lead_time))
 

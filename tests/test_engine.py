@@ -123,3 +123,27 @@ def test_snapshots_cover_every_site_and_part():
         ("r", 4),
         ("dc", 4),
     }
+
+
+def test_shipments_carry_lane_carrier():
+    config = NetworkConfig(
+        seed=0,
+        demand_file=Path("d"),
+        profile_file=Path("p"),
+        suppliers=(Supplier("s", 1.0, 10.0, 0.0, carrier="ocean"),),
+        dc_name="dc",
+        dc_capacity_units=100,
+        regions=(Region("r", 1.0, 2.0, 100, carrier="truck"),),
+    )
+    orders = pd.DataFrame(
+        [("o1", "p", "r", 0.0)], columns=["order_id", "part_id", "region", "time_days"]
+    )
+    sink = ListSink()
+    policy = Policy({("r", "p"): 1}, {"p": 0}, {"p": 1})
+    simulate(
+        config, {"p": "s"}, policy, orders, Emitter("t", START, sink), np.random.default_rng(0)
+    )
+
+    shipments = [e for e in sink.events if e.event_type == EventType.SHIPMENT_DISPATCHED]
+    assert {e.site: e.carrier_id for e in shipments} == {"dc": "truck", "s": "ocean"}
+    assert all(e.carrier_id is None for e in sink.events if e not in shipments)

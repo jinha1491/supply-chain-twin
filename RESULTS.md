@@ -44,3 +44,20 @@ Measured numbers from this project, with the step that produced each one.
   event each. Every short window held an event 25 to 30 days late, the edge of the
   injected 1-to-30-day lateness, so a watermark equal to maximum source lateness
   leaves no margin for cross-partition skew.
+
+## Schema evolution mid-stream (step 9)
+- Schema Registry (BACKWARD) accepted v2 (optional carrier_id with null default) and
+  rejected a required-field variant with HTTP 409 before any producer could use it.
+- Producer switched from v1 to v2 at 2000-02-15: 1,648,105 v1 and 1,610,925 v2
+  messages in one topic.
+- Spark decodes each message with its writer schema (schema ID from the 5-byte
+  header) and resolves to the latest; Iceberg columns added with metadata-only
+  ALTER TABLE, no data files rewritten.
+- A consumer that only knew v1 stopped at the first v2 message with an explicit error
+  instead of misreading or skipping data; after restart: 3,259,030 rows = Kafka,
+  0 duplicates, 0 gaps, 7 commits with none repeated.
+- v1 shipments read carrier_id as null (0 of 64,538); all 52,813 v2 shipments carry a
+  carrier matching their lane.
+- Lesson: decoding versions in separate unioned branches changed the query's source
+  count and made the checkpoint unusable; decoding in one CASE expression keeps a
+  single source for any number of schema versions.

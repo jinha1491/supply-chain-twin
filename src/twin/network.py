@@ -12,6 +12,7 @@ class Supplier:
     share_of_parts: float
     lead_time_mean: float
     lead_time_std: float
+    carrier: str | None = None
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class Region:
     demand_share: float
     transit_days: float
     capacity_units: int
+    carrier: str | None = None
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,7 @@ def load_config(path: str | Path) -> NetworkConfig:
             share_of_parts=s["share_of_parts"],
             lead_time_mean=s["lead_time_days"]["mean"],
             lead_time_std=s["lead_time_days"]["std"],
+            carrier=s.get("carrier"),
         )
         for s in raw["suppliers"]
     )

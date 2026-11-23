@@ -14,6 +14,7 @@ EVENT_SCHEMA = pa.schema(
         ("site", pa.dictionary(pa.int32(), pa.string())),
         ("quantity", pa.int32()),
         ("ref_id", pa.string()),
+        ("carrier_id", pa.string()),
     ]
 )
 DICTIONARY_COLUMNS = {"event_type", "part_id", "site"}
@@ -37,6 +38,7 @@ class ParquetSink:
         columns["site"].append(event.site)
         columns["quantity"].append(event.quantity)
         columns["ref_id"].append(event.ref_id)
+        columns["carrier_id"].append(event.carrier_id)
         self.count += 1
         if len(columns["event_id"]) >= self.batch_size:
             self.flush()

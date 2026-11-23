@@ -1,5 +1,6 @@
 import argparse
 import time
+from datetime import UTC, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -23,9 +24,9 @@ def horizon_days(demand: pd.DataFrame) -> float:
     return float((end - start).days)
 
 
-def make_sink(kind: str, run_id: str, out_dir: str):
+def make_sink(kind: str, run_id: str, out_dir: str, schema_switch=None):
     if kind == "kafka":
-        return KafkaSink.from_settings()
+        return KafkaSink.from_settings(schema_switch)
     return ParquetSink(Path(out_dir) / f"{run_id}.parquet")
 
 
@@ -103,9 +104,16 @@ def main() -> None:
     parser.add_argument("--out-dir", default="data/events")
     parser.add_argument("--late-fraction", type=float, default=0.0)
     parser.add_argument("--late-max-days", type=float, default=5.0)
+    parser.add_argument("--schema-switch-day", type=float, default=None)
     args = parser.parse_args()
 
-    base = make_sink(args.sink, args.run_id, args.out_dir)
+    schema_switch = None
+    if args.schema_switch_day is not None:
+        start = pd.read_parquet(load_config(CONFIG).demand_file)["month"].min()
+        schema_switch = start.to_pydatetime().replace(tzinfo=UTC) + timedelta(
+            days=args.schema_switch_day
+        )
+    base = make_sink(args.sink, args.run_id, args.out_dir, schema_switch)
     sink = (
         LateSink(base, args.late_fraction, max_days=args.late_max_days)
         if args.late_fraction
@@ -116,6 +124,8 @@ def main() -> None:
     if args.late_fraction:
         print(f"{sink.delayed:,} events sent late")
 
+    if args.sink == "kafka":
+        print(f"by schema version: {dict(sorted(base.by_version.items()))}")
     if args.sink == "parquet":
         print(f"{base.path.stat().st_size / 1e6:.1f} MB")
         summarize(base.path, load_config(CONFIG))

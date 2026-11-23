@@ -23,6 +23,7 @@ class Event:
     site: str
     quantity: int
     ref_id: str | None = None
+    carrier_id: str | None = None
 
     def to_dict(self) -> dict:
         record = asdict(self)
@@ -58,6 +59,7 @@ class Emitter:
         site: str,
         quantity: int,
         ref_id: str | None = None,
+        carrier_id: str | None = None,
     ) -> Event:
         self._seq += 1
         event = Event(
@@ -68,6 +70,7 @@ class Emitter:
             site=site,
             quantity=quantity,
             ref_id=ref_id,
+            carrier_id=carrier_id,
         )
         self.sink.emit(event)
         return event
