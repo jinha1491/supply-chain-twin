@@ -32,3 +32,15 @@ Measured numbers from this project, with the step that produced each one.
   watermark.
 - Splitting micro-batches by file inside an Iceberg commit reordered data enough to
   drop 939 events at a 2-day watermark with no extra injected lateness.
+
+## Exactly-once under crashes (step 8)
+- Killed ingestion and stateful aggregation 3 times each with SIGKILL at random
+  times; all 6 kills landed with a batch in flight, so every restart replayed a
+  partial batch.
+- Raw table after recovery: 3,259,030 rows = Kafka messages, 0 duplicate offsets,
+  0 missing offsets, 327 Iceberg commits with no batch committed twice.
+- Inventory positions: all 11,647 site-parts identical to batch recomputation.
+- Daily windows (30-day watermark): no window over-counted; 10 of 6,074 short by one
+  event each. Every short window held an event 25 to 30 days late, the edge of the
+  injected 1-to-30-day lateness, so a watermark equal to maximum source lateness
+  leaves no margin for cross-partition skew.
