@@ -49,3 +49,22 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def message_count(topic: str) -> int:
+    from confluent_kafka import Consumer, TopicPartition
+
+    consumer = Consumer(
+        {
+            "bootstrap.servers": settings.BOOTSTRAP,
+            "group.id": "twin-count",
+            "enable.auto.commit": False,
+        }
+    )
+    partitions = consumer.list_topics(topic, timeout=10).topics[topic].partitions
+    total = 0
+    for p in partitions:
+        low, high = consumer.get_watermark_offsets(TopicPartition(topic, p), timeout=10)
+        total += high - low
+    consumer.close()
+    return total

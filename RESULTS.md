@@ -103,3 +103,10 @@ Measured numbers from this project, with the step that produced each one.
 - About 2.77M snapshots: 0 differences, and every snapshot accounted for.
 - Sensitivity check: removing one receipt (1 of 3,259,359 events) produced 182
   failures, one per later weekly snapshot of that part, as expected.
+
+## Producer throughput (step 13a)
+- Layered benchmark on 3,259,030 events: simulation 9.6 s; Confluent AvroSerializer
+  +28.4 s (8.7 us/event); fast serializer +18.7 s (5.7 us/event); Kafka send +8.6 s.
+- Fast serializer registers the schema once, caches the 5-byte Confluent header,
+  and encodes bodies with fastavro: 34% less serialization time, producer throughput
+  69,831 to 88,353 events/s (+26.5%), same wire format, all messages delivered.

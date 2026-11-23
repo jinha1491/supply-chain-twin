@@ -1,9 +1,12 @@
+import io
+import json
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
+import fastavro
 from confluent_kafka import Producer
-from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry import Schema, SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import MessageField, SerializationContext
 
@@ -34,6 +37,22 @@ def avro_record(event: Event, version: int = LATEST) -> dict:
     return record
 
 
+class ConfluentFramer:
+    def __init__(self, schema_str: str, schema_id: int) -> None:
+        self.parsed = fastavro.parse_schema(json.loads(schema_str))
+        self.header = b"\x00" + schema_id.to_bytes(4, "big")
+
+    @classmethod
+    def registered(cls, registry: SchemaRegistryClient, subject: str, schema_str: str):
+        return cls(schema_str, registry.register_schema(subject, Schema(schema_str, "AVRO")))
+
+    def __call__(self, record: dict, ctx=None) -> bytes:
+        buffer = io.BytesIO()
+        buffer.write(self.header)
+        fastavro.schemaless_writer(buffer, self.parsed, record)
+        return buffer.getvalue()
+
+
 class KafkaSink:
     def __init__(
         self,
@@ -41,9 +60,17 @@ class KafkaSink:
         registry_url: str,
         topic: str,
         schema_switch: datetime | None = None,
+        serializer: str = "confluent",
     ) -> None:
         registry = SchemaRegistryClient({"url": registry_url})
-        self._serializers = {v: AvroSerializer(registry, load_schema(v)) for v in SCHEMA_FILES}
+        if serializer == "fast":
+            subject = f"{topic}-value"
+            self._serializers = {
+                v: ConfluentFramer.registered(registry, subject, load_schema(v))
+                for v in SCHEMA_FILES
+            }
+        else:
+            self._serializers = {v: AvroSerializer(registry, load_schema(v)) for v in SCHEMA_FILES}
         self._context = SerializationContext(topic, MessageField.VALUE)
         self._producer = Producer(
             {
@@ -62,8 +89,12 @@ class KafkaSink:
         self.last_error = None
 
     @classmethod
-    def from_settings(cls, schema_switch: datetime | None = None) -> "KafkaSink":
-        return cls(settings.BOOTSTRAP, settings.REGISTRY_URL, settings.TOPIC, schema_switch)
+    def from_settings(
+        cls, schema_switch: datetime | None = None, serializer: str = "confluent"
+    ) -> "KafkaSink":
+        return cls(
+            settings.BOOTSTRAP, settings.REGISTRY_URL, settings.TOPIC, schema_switch, serializer
+        )
 
     def version_for(self, event: Event) -> int:
         if self.schema_switch is None or event.event_time >= self.schema_switch:

@@ -66,3 +66,17 @@ class ParquetSink:
 
     def __exit__(self, *exc) -> None:
         self.close()
+
+
+class NullSink:
+    def __init__(self) -> None:
+        self.count = 0
+
+    def emit(self, event: Event) -> None:
+        self.count += 1
+
+    def __enter__(self) -> "NullSink":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        pass

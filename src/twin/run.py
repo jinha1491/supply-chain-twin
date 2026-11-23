@@ -26,9 +26,9 @@ def horizon_days(demand: pd.DataFrame) -> float:
     return float((end - start).days)
 
 
-def make_sink(kind: str, run_id: str, out_dir: str, schema_switch=None):
+def make_sink(kind: str, run_id: str, out_dir: str, schema_switch=None, serializer="fast"):
     if kind == "kafka":
-        return KafkaSink.from_settings(schema_switch)
+        return KafkaSink.from_settings(schema_switch, serializer)
     return ParquetSink(Path(out_dir) / f"{run_id}.parquet")
 
 
@@ -110,6 +110,7 @@ def main() -> None:
     parser.add_argument("--late-max-days", type=float, default=5.0)
     parser.add_argument("--schema-switch-day", type=float, default=None)
     parser.add_argument("--scenario", default=None, help="scenario YAML file")
+    parser.add_argument("--serializer", choices=["fast", "confluent"], default="fast")
     args = parser.parse_args()
 
     schema_switch = None
@@ -118,7 +119,7 @@ def main() -> None:
         schema_switch = start.to_pydatetime().replace(tzinfo=UTC) + timedelta(
             days=args.schema_switch_day
         )
-    base = make_sink(args.sink, args.run_id, args.out_dir, schema_switch)
+    base = make_sink(args.sink, args.run_id, args.out_dir, schema_switch, args.serializer)
     sink = (
         LateSink(base, args.late_fraction, max_days=args.late_max_days)
         if args.late_fraction
