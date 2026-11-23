@@ -27,3 +27,7 @@ sources:
     tables:
       - name: parts
       - name: suppliers_history
+  - name: ref
+    schema: ref
+    tables:
+      - name: policy

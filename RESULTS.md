@@ -95,3 +95,11 @@ Measured numbers from this project, with the step that produced each one.
   gaps or overlaps in supplier version history. Source freshness on ingest time: pass.
 - Pipeline runner executes ingest, CDC merge, aggregation, stockouts, freshness, and
   dbt build in order with per-step logs; full run about 100 s.
+
+## Stream vs snapshot reconciliation (step 12)
+- dbt model derives on-hand stock for every site-part at every weekly snapshot from
+  opening stock plus all receipts, fills, and DC shipments, ordered by emission
+  sequence, and compares it with the simulator's independently recorded snapshot.
+- About 2.77M snapshots: 0 differences, and every snapshot accounted for.
+- Sensitivity check: removing one receipt (1 of 3,259,359 events) produced 182
+  failures, one per later weekly snapshot of that part, as expected.
