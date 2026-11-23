@@ -162,3 +162,24 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+class MasterDataWriter:
+    def __init__(self, dsn: str = DSN) -> None:
+        self.conn = psycopg.connect(dsn, autocommit=True)
+
+    def apply(self, change: dict) -> None:
+        self.conn.execute(
+            "UPDATE suppliers SET lead_time_mean = %s, lead_time_std = %s, effective_at = %s"
+            " WHERE name = %s",
+            (
+                change["lead_time_mean"],
+                change["lead_time_std"],
+                sim_time(change["day"]),
+                change["name"],
+            ),
+        )
+        print(f"day {change['day']}: {change['name']} lead time -> {change['lead_time_mean']}")
+
+    def close(self) -> None:
+        self.conn.close()

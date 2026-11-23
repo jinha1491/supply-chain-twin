@@ -73,3 +73,15 @@ Measured numbers from this project, with the step that produced each one.
 - Changes: 2 supplier updates, 1 site update, 1 part delete with 5 policy deletes;
   lakehouse still exact. Two updates to the same supplier in one batch resolved to
   the newest by WAL position, with both versions kept in history.
+
+## Scenario: port congestion via CDC (step 10b)
+- Simulator applied Asia lead-time changes on days 600 (45 to 70) and 1300 (back to
+  45) and wrote them to Postgres during the run; Debezium and MERGE kept the
+  lakehouse exact (15,064 change messages, 0 missing, 0 extra).
+- As-of join of 51,824 DC purchase orders to the supplier version in effect at order
+  time: Asia 45-day version realized 44.8 days, 70-day version 69.9, domestic 7.0,
+  Mexico 18.0.
+- Regional stockouts for Asia parts rose from 5.25 to 7.60 days during congestion
+  (+2.34) while other parts moved -0.15; difference-in-differences +2.50 days.
+  Asia stockouts stayed elevated after recovery (5.82) while in-flight 70-day orders
+  cleared.

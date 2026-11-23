@@ -1,6 +1,6 @@
 import time
 from collections import Counter, defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
@@ -141,6 +141,18 @@ class NetworkSim:
             self.on_hand[key] -= 1
             self._ship_to_region(part, region, request_id)
 
+    def set_supplier_lead_time(self, name: str, mean: float, std: float) -> None:
+        self.suppliers[name] = replace(self.suppliers[name], lead_time_mean=mean, lead_time_std=std)
+
+    def run_changes(self, changes: list[dict], on_change=None):
+        for change in sorted(changes, key=lambda c: c["day"]):
+            yield self.env.timeout(change["day"] - self.env.now)
+            self.set_supplier_lead_time(
+                change["name"], change["lead_time_mean"], change["lead_time_std"]
+            )
+            if on_change:
+                on_change(change)
+
     def run_snapshots(self, every_days: float, until: float):
         while self.env.now + every_days <= until:
             yield self.env.timeout(every_days)
@@ -157,12 +169,16 @@ def simulate(
     rng: np.random.Generator,
     until: float | None = None,
     snapshot_every_days: float | None = None,
+    changes: list[dict] | None = None,
+    on_change=None,
 ) -> NetworkSim:
     if snapshot_every_days and until is None:
         raise ValueError("snapshots need an end time")
     env = simpy.Environment()
     sim = NetworkSim(env, config, part_supplier, policy, emitter, rng)
     env.process(sim.run_orders(orders))
+    if changes:
+        env.process(sim.run_changes(changes, on_change))
     if snapshot_every_days:
         env.process(sim.run_snapshots(snapshot_every_days, until))
     env.run(until=until)

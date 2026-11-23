@@ -6,8 +6,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from twin.masterdata import MasterDataWriter
 from twin.network import NetworkConfig, load_config
 from twin.policy import policy_from_table
+from twin.scenario import load_scenario
 from twin.sim.demand import generate_orders
 from twin.sim.engine import simulate
 from twin.sim.events import Emitter
@@ -30,7 +32,7 @@ def make_sink(kind: str, run_id: str, out_dir: str, schema_switch=None):
     return ParquetSink(Path(out_dir) / f"{run_id}.parquet")
 
 
-def run(run_id: str, snapshot_every_days: float, sink) -> float:
+def run(run_id: str, snapshot_every_days: float, sink, changes=None, on_change=None) -> float:
     config = load_config(CONFIG)
     demand = pd.read_parquet(config.demand_file)
     parts = pd.read_parquet("data/processed/parts.parquet")
@@ -51,6 +53,8 @@ def run(run_id: str, snapshot_every_days: float, sink) -> float:
             rng,
             until=horizon_days(demand),
             snapshot_every_days=snapshot_every_days,
+            changes=changes,
+            on_change=on_change,
         )
     return time.perf_counter() - started
 
@@ -105,6 +109,7 @@ def main() -> None:
     parser.add_argument("--late-fraction", type=float, default=0.0)
     parser.add_argument("--late-max-days", type=float, default=5.0)
     parser.add_argument("--schema-switch-day", type=float, default=None)
+    parser.add_argument("--scenario", default=None, help="scenario YAML file")
     args = parser.parse_args()
 
     schema_switch = None
@@ -119,7 +124,15 @@ def main() -> None:
         if args.late_fraction
         else base
     )
-    elapsed = run(args.run_id, args.snapshot_every_days, sink)
+    changes, writer = [], None
+    if args.scenario:
+        changes = load_scenario(args.scenario)["changes"]
+        if args.sink == "kafka":
+            writer = MasterDataWriter()
+    on_change = writer.apply if writer else None
+    elapsed = run(args.run_id, args.snapshot_every_days, sink, changes, on_change)
+    if writer:
+        writer.close()
     print(f"{sink.count:,} events in {elapsed:.1f}s ({sink.count / elapsed:,.0f} events/s)")
     if args.late_fraction:
         print(f"{sink.delayed:,} events sent late")

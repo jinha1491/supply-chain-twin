@@ -1,0 +1,5 @@
+name: port_congestion
+description: Asia supplier lead times rise during port congestion, then recover.
+changes:
+  - {day: 600, kind: supplier, name: asia, lead_time_mean: 70, lead_time_std: 25}
+  - {day: 1300, kind: supplier, name: asia, lead_time_mean: 45, lead_time_std: 15}
