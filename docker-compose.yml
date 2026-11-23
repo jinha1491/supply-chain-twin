@@ -45,6 +45,7 @@ services:
   postgres:
     image: postgres:16
     container_name: postgres
+    command: ["postgres", "-c", "wal_level=logical"]
     ports:
       - "5433:5432"
     environment:
@@ -58,6 +59,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+
+  connect:
+    image: quay.io/debezium/connect:2.7.3.Final
+    container_name: connect
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:19092
+      GROUP_ID: twin-connect
+      CONFIG_STORAGE_TOPIC: connect.configs
+      OFFSET_STORAGE_TOPIC: connect.offsets
+      STATUS_STORAGE_TOPIC: connect.status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      KAFKA_HEAP_OPTS: "-Xms256M -Xmx768M"
 
   seaweedfs:
     image: chrislusf/seaweedfs:latest

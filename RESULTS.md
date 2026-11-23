@@ -61,3 +61,15 @@ Measured numbers from this project, with the step that produced each one.
 - Lesson: decoding versions in separate unioned branches changed the query's source
   count and made the checkpoint unusable; decoding in one CASE expression keeps a
   single source for any number of schema versions.
+
+## Change data capture (step 10a)
+- Postgres master data (suppliers, sites, parts, policy) streamed into Kafka by
+  Debezium from the write-ahead log (pgoutput, replication slot, initial snapshot).
+- Spark foreachBatch MERGE keeps current-state Iceberg tables in sync and appends
+  every change to history tables; both are idempotent under replay (MERGE by key,
+  history keyed by key plus Kafka offset).
+- Snapshot: 15,062 rows across 4 tables, 0 missing and 0 extra vs Postgres (JDBC
+  exceptAll both ways).
+- Changes: 2 supplier updates, 1 site update, 1 part delete with 5 policy deletes;
+  lakehouse still exact. Two updates to the same supplier in one batch resolved to
+  the newest by WAL position, with both versions kept in history.
