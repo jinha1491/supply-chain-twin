@@ -47,6 +47,10 @@ class NetworkSim:
         self.region_backorders: dict[tuple[str, str], deque] = defaultdict(deque)
         self.dc_queue: dict[str, deque] = defaultdict(deque)
         self.dc_on_order: dict[str, int] = defaultdict(int)
+        self.dc_reorder_point = dict(policy.dc_reorder_point)
+        self.dc_order_up_to = dict(policy.dc_order_up_to)
+        self.region_level = dict(policy.region_base_stock)
+        self.region_skip: dict[tuple[str, str], int] = defaultdict(int)
         self._id_seq = 0
 
     def _new_id(self, prefix: str) -> str:
@@ -73,6 +77,12 @@ class NetworkSim:
             self.region_backorders[key].append(order_id)
             self._emit(EventType.BACKORDER, part, region, 1, order_id)
 
+        if self.region_skip[key] > 0:
+            self.region_skip[key] -= 1
+            return
+        self._request_from_dc(part, region)
+
+    def _request_from_dc(self, part: str, region: str) -> None:
         request_id = self._new_id("rr")
         self._emit(EventType.REPLENISHMENT_ORDER, part, region, 1, request_id)
         self.dc_request(part, region, request_id)
@@ -106,9 +116,9 @@ class NetworkSim:
 
     def _check_dc_reorder(self, part: str) -> None:
         position = self.dc_position(part)
-        if position > self.policy.dc_reorder_point.get(part, 0):
+        if position > self.dc_reorder_point.get(part, 0):
             return
-        quantity = self.policy.dc_order_up_to.get(part, 0) - position
+        quantity = self.dc_order_up_to.get(part, 0) - position
         if quantity <= 0:
             return
 
@@ -153,6 +163,28 @@ class NetworkSim:
             if on_change:
                 on_change(change)
 
+    def update_policy(self, region_levels: dict, dc_reorder: dict, dc_order_up_to: dict) -> None:
+        for key, level in region_levels.items():
+            change = level - self.region_level.get(key, 0)
+            self.region_level[key] = level
+            if change > 0:
+                cancelled = min(change, self.region_skip[key])
+                self.region_skip[key] -= cancelled
+                region, part = key
+                for _ in range(change - cancelled):
+                    self._request_from_dc(part, region)
+            elif change < 0:
+                self.region_skip[key] -= change
+        self.dc_reorder_point.update(dc_reorder)
+        self.dc_order_up_to.update(dc_order_up_to)
+        for part in dc_reorder:
+            self._check_dc_reorder(part)
+
+    def run_policy_updates(self, updates: list[tuple]):
+        for day, region_levels, dc_reorder, dc_order_up_to in sorted(updates, key=lambda u: u[0]):
+            yield self.env.timeout(day - self.env.now)
+            self.update_policy(region_levels, dc_reorder, dc_order_up_to)
+
     def run_snapshots(self, every_days: float, until: float):
         while self.env.now + every_days <= until:
             yield self.env.timeout(every_days)
@@ -171,6 +203,8 @@ def simulate(
     snapshot_every_days: float | None = None,
     changes: list[dict] | None = None,
     on_change=None,
+    policy_updates: list[tuple] | None = None,
+    observers: list | None = None,
 ) -> NetworkSim:
     if snapshot_every_days and until is None:
         raise ValueError("snapshots need an end time")
@@ -179,6 +213,10 @@ def simulate(
     env.process(sim.run_orders(orders))
     if changes:
         env.process(sim.run_changes(changes, on_change))
+    if policy_updates:
+        env.process(sim.run_policy_updates(policy_updates))
+    for observer in observers or []:
+        env.process(observer(sim))
     if snapshot_every_days:
         env.process(sim.run_snapshots(snapshot_every_days, until))
     env.run(until=until)

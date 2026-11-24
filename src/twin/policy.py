@@ -132,3 +132,36 @@ if __name__ == "__main__":
     print(f"\nrealized fill rate (target {settings.region_fill_target:.2f}):")
     print((1 - backorders / demand_by_site).round(3).to_string())
     print(f"overall: {1 - backorders.sum() / demand_by_site.sum():.3f}")
+
+
+def vector_levels(
+    config: NetworkConfig, settings: PolicySettings, rates: pd.Series, part_supplier: pd.Series
+) -> tuple[dict, dict, dict]:
+    parts = rates.index
+    rate = rates.to_numpy(dtype=float)
+
+    region_levels = {}
+    for region in config.regions:
+        mean = rate * region.demand_share * region.transit_days
+        with np.errstate(invalid="ignore"):
+            level = np.where(mean > 0, stats.poisson.ppf(settings.region_fill_target, mean) + 1, 0)
+        region_levels.update({(region.name, p): int(v) for p, v in zip(parts, level, strict=True)})
+
+    suppliers = {s.name: s for s in config.suppliers}
+    names = part_supplier.reindex(parts).to_numpy()
+    lt_mean = np.array([suppliers[n].lead_time_mean for n in names])
+    lt_std = np.array([suppliers[n].lead_time_std for n in names])
+    mean = rate * lt_mean
+    var = mean + (rate * lt_std) ** 2
+    extra = var - mean
+    with np.errstate(divide="ignore", invalid="ignore"):
+        negative_binomial = stats.nbinom.ppf(
+            settings.dc_service_target, mean**2 / extra, mean / var
+        )
+        poisson = stats.poisson.ppf(settings.dc_service_target, mean)
+    reorder = np.where(rate <= 0, 0, np.where(extra > 1e-12, negative_binomial, poisson))
+    quantity = np.maximum(1, np.ceil(rate * settings.dc_order_cover_days))
+
+    dc_reorder = {p: int(r) for p, r in zip(parts, reorder, strict=True)}
+    dc_order_up_to = {p: int(r + q) for p, r, q in zip(parts, reorder, quantity, strict=True)}
+    return region_levels, dc_reorder, dc_order_up_to

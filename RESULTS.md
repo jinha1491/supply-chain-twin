@@ -154,3 +154,19 @@ Measured numbers from this project, with the step that produced each one.
 - LightGBM vs SES, part-level bootstrap: squared-error gain +0.036 (95% CI +0.027 to
   +0.044), better on 57% of parts. Real but modest; most monthly variation in this
   demand is not predictable.
+
+## Forecast-driven inventory (step 14b)
+- Months 25 to 51: stocking levels recomputed monthly from each method's forecast
+  (data up to the prior month only) and applied in the simulator; same orders for
+  every run. Reference: perfect-information policy (true full-history rates).
+- Perfect information: fill 92.14%, 15,602 units on hand on average.
+- LightGBM 92.69% (+0.55 pts) at +7.2% units; SES 92.44% at +6.2%; 12-month
+  average 92.22% at +5.5%; TSB 92.08% at +7.3%; Croston 90.22% and SBA 90.02%
+  (about -2 pts) at +3.7 to +5.2%; naive 89.62% at +68% units.
+- Every forecast-driven policy held more stock than perfect information. Levels rise
+  at once (orders) but fall only as sales go unreplaced, so volatile forecasts ratchet
+  inventory upward; naive forecasts more than doubled DC stock.
+- Croston and SBA used less stock than the best methods yet lost about 2 fill-rate
+  points: they update only on demand and react slowly to parts whose demand rises.
+- Single run per method; sub-point differences among LightGBM, SES, and the moving
+  average need replication across seeds.
