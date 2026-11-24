@@ -123,3 +123,21 @@ Measured numbers from this project, with the step that produced each one.
     third to 1.59 s in the last, a warm-up transient rather than backlog.
   - Producer at full speed alongside Spark on one laptop (31,641 events/s
     measured from Kafka timestamps): steady-state median 2.64 s.
+
+## Small files and compaction (step 13c)
+- 3.26M rows ingested in 10,000-message batches: 327 batches at 30,824 rows/s,
+  about 10.6x slower than 500,000-message batches (326,663 rows/s); median batch
+  0.25 s, mostly fixed per-batch cost. Result: 455 files averaging 50 KB.
+- rewrite_data_files compacted them into 51 files (one per month) in 11.4 s as one
+  atomic commit; row count and a checksum over every row unchanged; storage 24.2 to
+  21.5 MB.
+- Query medians (5 runs after warm-up): full scan 2.17 s to 0.37 s (5.9x), single
+  part history 3.33 s to 1.32 s (2.5x); a one-month query was already pruned to few
+  files and did not change beyond noise.
+- Before compaction, scanning the 3.26M-row small-file table took longer (2.17 s)
+  than scanning a 19.9M-row table in 93 larger files (1.12 s).
+- On the 93-file table Iceberg rewrote nothing (fewer than 5 files per partition),
+  and repeat timings there varied by up to several times for sub-second queries, so
+  only speedups well above that are reported.
+- Ingest summaries now come from a StreamingQueryListener, so runs longer than 100
+  batches are counted correctly.

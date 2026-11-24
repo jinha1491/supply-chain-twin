@@ -7,6 +7,7 @@ import urllib.request
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.avro.functions import from_avro
+from pyspark.sql.streaming import StreamingQueryListener
 
 KAFKA = os.environ.get("KAFKA_BOOTSTRAP", "kafka:19092")
 REGISTRY = os.environ.get("SCHEMA_REGISTRY_URL", "http://schema-registry:8081")
@@ -115,16 +116,37 @@ def evolve_table(spark: SparkSession, table: str, events: DataFrame) -> list[str
     return added
 
 
-def summarize(query, started: float) -> None:
-    progress = [p for p in query.recentProgress if p["numInputRows"] > 0]
-    rows = sum(p["numInputRows"] for p in progress)
+class ProgressTotals(StreamingQueryListener):
+    def __init__(self) -> None:
+        self.batches = 0
+        self.rows = 0
+        self.durations: list[float] = []
+
+    def onQueryStarted(self, event) -> None:
+        pass
+
+    def onQueryProgress(self, event) -> None:
+        progress = event.progress
+        if progress.numInputRows > 0:
+            self.batches += 1
+            self.rows += progress.numInputRows
+            self.durations.append(progress.durationMs.get("triggerExecution", 0) / 1000)
+
+    def onQueryIdle(self, event) -> None:
+        pass
+
+    def onQueryTerminated(self, event) -> None:
+        pass
+
+
+def summarize(totals: ProgressTotals, started: float) -> None:
     elapsed = time.perf_counter() - started
-    durations = sorted(p["durationMs"].get("triggerExecution", 0) / 1000 for p in progress)
     print(
-        f"ingest: {len(progress)} batches, {rows:,} rows in {elapsed:.1f}s "
-        f"({rows / elapsed:,.0f} rows/s)",
+        f"ingest: {totals.batches} batches, {totals.rows:,} rows in {elapsed:.1f}s "
+        f"({totals.rows / elapsed:,.0f} rows/s)",
         flush=True,
     )
+    durations = sorted(totals.durations)
     if durations:
         p50 = durations[len(durations) // 2]
         p95 = durations[int(0.95 * (len(durations) - 1))]
@@ -154,6 +176,8 @@ def main() -> None:
         print(f"added column {column} to {args.table}", flush=True)
     events = events.select(*spark.table(args.table).columns)
 
+    totals = ProgressTotals()
+    spark.streams.addListener(totals)
     writer = (
         events.writeStream.format("iceberg")
         .outputMode("append")
@@ -173,7 +197,8 @@ def main() -> None:
         query.stop()
     else:
         query.awaitTermination()
-    summarize(query, started)
+    time.sleep(2)
+    summarize(totals, started)
 
 
 if __name__ == "__main__":
