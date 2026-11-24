@@ -210,3 +210,35 @@ Forecast policies vs perfect information at 0.95 (paired):
   stock, not better placement. LightGBM and SES are effectively tied on efficiency.
 - Linear interpolation sits below a concave curve, so the gap is if anything
   understated.
+
+## 15b. Greedy allocation under a unit budget
+
+Regional stock allocated by marginal analysis: each part-region's filled demand at
+level S is rate * F(S-1) (Palm's theorem), greedy runs over the concave hull of that
+curve, and the DC policy stays at the 0.95 service level. Capacity limits were not
+used as constraints: the engine never reads them and the configured values were
+sized from the policy itself (ceil(max_units * 1.15)), so OR-Tools was not needed.
+Greedy over concave hulls is optimal for one budget with independent parts; every
+budget below was filled exactly (0 leftover units).
+
+| Regional budget | Model fill (uniform -> greedy) | Simulated fill | vs uniform, same budget | Part-regions at 0 |
+|---|---|---|---|---|
+| 6,000 | n/a -> 0.8788 | 0.8066 +/- 0.0023 | n/a | 40.2% |
+| 8,000 | n/a -> 0.9477 | 0.8825 +/- 0.0021 | n/a | 20.7% |
+| 10,036 | 0.9789 -> 0.9823 | 0.9284 +/- 0.0015 | +0.0112 +/- 0.0010 | 4.4% |
+| 10,127 | 0.9809 -> 0.9833 | 0.9300 +/- 0.0013 | +0.0087 +/- 0.0006 | 3.9% |
+| 11,727 | 0.9939 -> 0.9940 | 0.9528 +/- 0.0011 | -0.0006 +/- 0.0002 | 0.0% |
+| 13,885 | 0.9982 -> 0.9982 | 0.9693 +/- 0.0009 | -0.0002 +/- 0.0001 | 0.0% |
+| 16,045 | 0.9994 -> 0.9994 | 0.9781 +/- 0.0010 | +0.0026 +/- 0.0002 | 0.0% |
+
+- At the default 0.95 policy's budget, greedy holds 15,596 average units vs 15,599
+  and gains 0.87 fill points (paired, 5 seeds). Reaching the same fill on the uniform
+  curve takes up to about 430 more units (2.8%, an upper bound from interpolation).
+- The gain is concentrated where the integer floor binds (targets of 0.95 and
+  below): greedy moves single units off near-zero-demand parts to second units on
+  faster parts. At higher budgets the two allocations are nearly identical.
+- The simulated gain is about 3.6x the model's prediction. Hypothesis, not tested:
+  DC stockouts lengthen real restocking time beyond the model's transit days, which
+  makes second units on faster parts worth more than the model assumes.
+- Cutting the regional budget from 10,036 to 8,000 costs 4.6 fill points; the slow
+  tail carries real fill in aggregate. Predicted to lose little; it does not.
