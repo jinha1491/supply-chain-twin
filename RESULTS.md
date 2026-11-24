@@ -170,3 +170,43 @@ Measured numbers from this project, with the step that produced each one.
   points: they update only on demand and react slowly to parts whose demand rises.
 - Single run per method; sub-point differences among LightGBM, SES, and the moving
   average need replication across seeds.
+
+## 15a. Fill rate vs inventory tradeoff
+
+45 simulations: perfect-information policies at six regional fill targets plus three
+forecast policies, each on 5 seeds. All policies share the same 5 demand sets, so
+differences are paired. Intervals are 95% Student's t across seeds.
+
+Perfect-information curve:
+
+| Regional target | Fill rate | Avg units |
+|---|---|---|
+| 0.80 | 0.9172 +/- 0.0020 | 15,509 |
+| 0.90 | 0.9172 +/- 0.0020 | 15,509 |
+| 0.95 | 0.9213 +/- 0.0017 | 15,599 |
+| 0.98 | 0.9533 +/- 0.0011 | 17,191 |
+| 0.99 | 0.9695 +/- 0.0009 | 19,344 |
+| 0.995 | 0.9755 +/- 0.0009 | 21,502 |
+
+- Marginal cost rises steeply: about 500 units per fill point from 0.95 to 0.98,
+  1,330 from 0.98 to 0.99, and 3,600 from 0.99 to 0.995.
+- The curve is flat below 0.95 because stock is integer. 97.1% of parts sell under
+  0.05 units a day; every one of the 10,036 regional levels is 1 at targets 0.80 and
+  0.90, since 0 units gives no fill and 1 unit already exceeds 90%. Only 91 levels
+  rise to 2 at 0.95.
+
+Forecast policies vs perfect information at 0.95 (paired):
+
+| Method | Fill difference | Unit difference | Fill vs curve at same units |
+|---|---|---|---|
+| LightGBM | +0.0047 +/- 0.0004 | +7.2% | -0.0179 |
+| SES | +0.0028 +/- 0.0005 | +6.2% | -0.0168 |
+| 12-month average | +0.0000 +/- 0.0007 | +5.5% | -0.0173 |
+
+- LightGBM's fill gain is real (the interval excludes zero) but smaller than the
+  single-seed +0.0055 from 14b.
+- No forecast policy beats stocking more. At equal inventory, all three trail the
+  perfect-information curve by 1.7 to 1.8 points, so their gains come from extra
+  stock, not better placement. LightGBM and SES are effectively tied on efficiency.
+- Linear interpolation sits below a concave curve, so the gap is if anything
+  understated.
