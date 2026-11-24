@@ -11,3 +11,5 @@ checkpoints/
 dbt/target/
 dbt/logs/
 logs/
+mlflow.db
+mlruns/

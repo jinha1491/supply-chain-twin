@@ -141,3 +141,16 @@ Measured numbers from this project, with the step that produced each one.
   only speedups well above that are reported.
 - Ingest summaries now come from a StreamingQueryListener, so runs longer than 100
   batches are counted correctly.
+
+## Forecasting sparse demand (step 14a)
+- Rolling-origin evaluation: 2,509 parts x 27 months = 67,743 one-month-ahead forecasts
+  per method, each using only prior months; runs tracked in MLflow.
+- An always-zero forecast had the lowest MAE (0.450), so methods are ranked by RMSE
+  and bias instead.
+- RMSE: LightGBM (global Tweedie model, leakage-free features) 1.152, SES 1.167,
+  12-month average 1.178, TSB 1.194, SBA 1.262, Croston 1.274, naive 1.566. Croston
+  and SBA did no better than forecasting zero on this dataset; SBA cut Croston's
+  upward bias from +0.104 to +0.076.
+- LightGBM vs SES, part-level bootstrap: squared-error gain +0.036 (95% CI +0.027 to
+  +0.044), better on 57% of parts. Real but modest; most monthly variation in this
+  demand is not predictable.
