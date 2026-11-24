@@ -242,3 +242,32 @@ budget below was filled exactly (0 leftover units).
   makes second units on faster parts worth more than the model assumes.
 - Cutting the regional budget from 10,036 to 8,000 costs 4.6 fill points; the slow
   tail carries real fill in aggregate. Predicted to lose little; it does not.
+
+## 15c. Serving zero-stock parts from the DC
+
+No engine change was needed: a demand at a part-region with no stock is backordered,
+the region still requests a unit from the DC (one-for-one replenishment), and the
+arriving unit fills the oldest backorder. The new tracker measures each backorder's
+wait (BACKORDER to FULFILLED for the same order) and each regional request's DC delay
+(REPLENISHMENT_ORDER to the DC's SHIPMENT_DISPATCHED). 5 seeds.
+
+| Policy | Immediate fill | Served within 3 days | Mean wait | p95 wait | Avg units |
+|---|---|---|---|---|---|
+| uniform, 10,127 | 0.9213 +/- 0.0017 | 0.9613 +/- 0.0007 | 8.92d | 34.24d | 15,599 |
+| greedy, 10,127 | 0.9300 +/- 0.0013 | 0.9654 +/- 0.0006 | 8.94d | 33.97d | 15,596 |
+| greedy, 8,000 | 0.8825 +/- 0.0021 | 0.9579 +/- 0.0008 | 7.11d | 31.32d | 13,477 |
+| greedy, 6,000 | 0.8066 +/- 0.0023 | 0.9505 +/- 0.0012 | 5.80d | 27.21d | 11,488 |
+
+- DC delay per regional request is identical to 4 decimals across all policies at
+  every seed (1.64 to 1.73 days). Predicted from the engine: every demand triggers one
+  DC request regardless of regional level, so regional allocation cannot affect the DC.
+- 12.9% of regional requests wait at the DC, about 13 days each when they do. Since
+  transit is at most 3 days and backorders fill first in, first out, every wait over
+  3 days is caused by DC delay. This is consistent with the 15b hypothesis that real
+  restocking is slower than the model's transit-only lead time.
+- On 3-day service, greedy at 8,000 holds 13.6% fewer units than the uniform default
+  for 0.34 points less service (vs 3.9 points of immediate fill).
+- Mean wait falls as stock falls because the added waits are short transit-only
+  ones; served within 3 days is the better measure.
+- Conclusion: slow parts can be served from the DC if 2 to 3 day delivery is
+  acceptable, and the remaining service gap sits at the DC, not in regional allocation.
